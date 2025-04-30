@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Precios con Margen</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .resultado {
+      font-size: 1.5rem;
+      margin-top: 1rem;
+    }
+    .emoji {
+      font-size: 2rem;
+    }
+    table th, table td {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card shadow-lg animate__animated animate__fadeIn">
+          <div class="card-body">
+            <h1 class="card-title text-center mb-4">🧮 Calculadora de Precios</h1>
+
+            <div class="mb-3">
+              <label for="concepto" class="form-label">Nombre del Producto</label>
+              <input type="text" class="form-control" id="concepto" placeholder="Ej. Camiseta">
+            </div>
+            <div class="mb-3">
+              <label for="costo" class="form-label">Costo Base ($)</label>
+              <input type="number" class="form-control" id="costo" placeholder="Ej. 50">
+            </div>
+            <div class="mb-3">
+              <label for="ganancia" class="form-label">Margen de Ganancia (%)</label>
+              <input type="number" class="form-control" id="ganancia" placeholder="Ej. 30">
+            </div>
+
+            <div class="d-grid gap-2">
+              <button onclick="calcularPrecio()" class="btn btn-success">Calcular 💡</button>
+            </div>
+
+            <div id="resultado" class="resultado text-center mt-4 animate__animated"></div>
+
+            <hr>
+            <h4 class="mt-4">📋 Productos Calculados</h4>
+            <div class="table-responsive">
+              <table id="tablaProductos" class="table table-bordered table-striped mt-3">
+                <thead class="table-light">
+                  <tr>
+                    <th>Concepto</th>
+                    <th>Costo Base ($)</th>
+                    <th>Margen (%)</th>
+                    <th>Precio Sugerido ($)</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="d-flex gap-2">
+              <button onclick="exportarPDF()" class="btn btn-danger">Exportar PDF 🧾</button>
+              <button onclick="exportarExcel()" class="btn btn-primary">Exportar Excel 📊</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const productos = [];
+
+    function calcularPrecio() {
+      const concepto = document.getElementById('concepto').value.trim();
+      const costo = parseFloat(document.getElementById('costo').value);
+      const ganancia = parseFloat(document.getElementById('ganancia').value);
+      const resultadoDiv = document.getElementById('resultado');
+
+      if (!concepto || isNaN(costo) || isNaN(ganancia)) {
+        resultadoDiv.className = 'resultado text-center mt-4 animate__animated animate__shakeX';
+        resultadoDiv.innerHTML = '⚠️ Por favor, completa todos los campos con valores válidos.';
+        return;
+      }
+
+      const precioFinal = costo + (costo * ganancia / 100);
+      const margen = precioFinal - costo;
+
+      resultadoDiv.className = 'resultado text-center mt-4 animate__animated animate__fadeInUp';
+      resultadoDiv.innerHTML = `💰 <strong>Precio de Venta:</strong> $${precioFinal.toFixed(2)}<br>📈 <strong>Ganancia:</strong> $${margen.toFixed(2)}`;
+
+      const producto = { concepto, costo, ganancia, precioFinal };
+      productos.push(producto);
+      agregarFilaTabla(producto, productos.length - 1);
+
+      document.getElementById('concepto').value = '';
+      document.getElementById('costo').value = '';
+      document.getElementById('ganancia').value = '';
+    }
+
+    function agregarFilaTabla(producto, index) {
+      const tabla = document.querySelector('#tablaProductos tbody');
+      const fila = tabla.insertRow();
+      fila.setAttribute('data-index', index);
+
+      fila.innerHTML = `
+        <td>${producto.concepto}</td>
+        <td>$${producto.costo.toFixed(2)}</td>
+        <td>${producto.ganancia}%</td>
+        <td>$${producto.precioFinal.toFixed(2)}</td>
+        <td>
+          <button class="btn btn-warning btn-sm me-1" onclick="editarProducto(${index})">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarProducto(${index})">🗑️ Eliminar</button>
+        </td>
+      `;
+    }
+
+    function eliminarProducto(index) {
+      productos.splice(index, 1);
+      actualizarTabla();
+    }
+
+    function editarProducto(index) {
+      const p = productos[index];
+      document.getElementById('concepto').value = p.concepto;
+      document.getElementById('costo').value = p.costo;
+      document.getElementById('ganancia').value = p.ganancia;
+
+      productos.splice(index, 1);
+      actualizarTabla();
+    }
+
+    function actualizarTabla() {
+      const tabla = document.querySelector('#tablaProductos tbody');
+      tabla.innerHTML = '';
+      productos.forEach((p, i) => agregarFilaTabla(p, i));
+    }
+
+    function exportarExcel() {
+      const hoja = XLSX.utils.json_to_sheet(productos);
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, 'Productos');
+      XLSX.writeFile(libro, 'productos.xlsx');
+    }
+
+    async function exportarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.text("Lista de Productos Calculados", 14, 20);
+      doc.setFontSize(12);
+
+      let y = 30;
+      productos.forEach((p, i) => {
+        doc.text(`${i + 1}. ${p.concepto} - Costo: $${p.costo.toFixed(2)}, Margen: ${p.ganancia}%, Precio: $${p.precioFinal.toFixed(2)}`, 14, y);
+        y += 10;
+      });
+
+      doc.save('productos.pdf');
+    }
+  </script>
+</body>
+
+</html>
